@@ -9,9 +9,11 @@ allowed-tools: Bash, Read, Write, Edit, Grep, Glob, Task
 
 Fully automated PR lifecycle. You have local changes ready to go. Take them all the way to merge with zero user intervention.
 
-## CRITICAL: How the review command works
+## CRITICAL: How the isolated review works
 
-The `/review` command (code-review:code-review) posts its findings **directly as a PR comment** via `gh pr comment`. After running the isolated review, read the latest PR comment to parse the results. Do NOT rely on stdout from `claude -p`.
+The review is run by dispatching a **Task subagent** (type: `general-purpose`). The subagent has a fresh context with zero knowledge of the implementation. It reviews the PR diff via `gh`, posts its findings as a PR comment, and returns a summary.
+
+**Do NOT use `claude -p`** — nested Claude Code sessions are not supported.
 
 ## Phase 1: Setup
 
@@ -63,32 +65,69 @@ Set ROUND=1. For each round:
 
 ### Step 3a: Run isolated review
 
-Launch an isolated Claude process to review the PR. This reviewer has NO context from the current session:
+Dispatch a **Task subagent** to review the PR. The subagent has a fresh context with no knowledge of the implementation. Use the Task tool with these parameters:
 
-```bash
-claude -p "Review PR #<PR_NUMBER> in this repo using /review. The repo is at $(pwd)." 2>&1
+- **subagent_type:** `general-purpose`
+- **description:** `Review PR #<PR_NUMBER>`
+- **prompt:** (include ALL of the following in the prompt)
+
+```
+You are an independent code reviewer. Review PR #<PR_NUMBER> in the repo at <REPO_PATH>.
+
+Do the following:
+
+1. Run: gh pr diff <PR_NUMBER>
+   Read the full diff carefully.
+
+2. Run: gh pr view <PR_NUMBER> --json title,body --jq '.title + "\n" + .body'
+   Understand what the PR is trying to do.
+
+3. Check for any CLAUDE.md files in the repo root and in directories touched by the PR.
+
+4. Review the diff for:
+   a. Bugs - logic errors, off-by-one, null/undefined issues, race conditions
+   b. CLAUDE.md compliance - if CLAUDE.md files exist, check the changes comply
+   c. Security issues - injection, XSS, credential exposure
+   d. Obvious mistakes a senior engineer would flag
+
+5. For each issue found, score your confidence from 0-100:
+   - 0: False positive, doesn't stand up to scrutiny
+   - 25: Might be an issue, can't verify
+   - 50: Real issue but minor or unlikely in practice
+   - 75: Verified real issue, important, will impact functionality
+   - 100: Certain, confirmed, will happen frequently
+
+6. Filter out anything below 80 confidence.
+
+7. Post your review as a PR comment using:
+   gh pr comment <PR_NUMBER> --body "<your review>"
+
+   Format:
+   If issues found:
+   ### Code review
+   Found N issues:
+   1. <description>
+   2. <description>
+
+   If no issues:
+   ### Code review
+   No issues found. Checked for bugs and CLAUDE.md compliance.
+
+8. Return a one-line summary: either "LGTM" or "ISSUES: N issues found"
 ```
 
-Wait for it to complete. The `/review` command posts its findings directly as a PR comment.
+Wait for the subagent to complete and read its return value.
 
-### Step 3b: Read the review results
+### Step 3b: Determine LGTM vs issues
 
-Fetch the latest comment on the PR to get the review findings:
+Check the subagent's return value AND fetch the latest PR comment to confirm:
 
-```bash
-gh api repos/{owner}/{repo}/pulls/<PR>/comments --jq '.[-1].body' 2>/dev/null || gh pr view <PR> --json comments --jq '.comments[-1].body'
-```
-
-If the above doesn't return the review, try:
 ```bash
 gh api repos/{owner}/{repo}/issues/<PR>/comments --jq '.[-1].body'
 ```
 
-### Step 3c: Determine LGTM vs issues
-
-Parse the latest review comment:
-- **LGTM signals:** The comment contains "No issues found" or has zero numbered issue items.
-- **Issues signals:** The comment contains "Found N issues:" followed by a numbered list.
+- **LGTM signals:** Subagent returned "LGTM" or latest comment contains "No issues found".
+- **Issues signals:** Subagent returned "ISSUES:" or latest comment contains "Found N issues:".
 
 **If LGTM:**
 Post a comment:

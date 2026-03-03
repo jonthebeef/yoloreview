@@ -73,14 +73,16 @@ A `/yoloreview` slash command for Claude Code that fully automates the PR lifecy
 
 ## Isolated Review Invocation
 
-```bash
-claude -p "Review PR #<PR_NUMBER> in this repo using /review. The repo is at $(pwd)." 2>&1
-```
+The review is run by dispatching a **Task subagent** (`general-purpose` type) via the Task tool. The subagent:
 
-- Subprocess gets a clean context (no knowledge of implementation)
-- **Key insight:** The `/review` command posts its findings directly as a PR comment via `gh pr comment`. The yoloreview loop reads PR comments to parse results rather than relying on `claude -p` stdout.
-- LGTM detection: comment contains "No issues found" or zero numbered items
-- Issues detection: comment contains "Found N issues:" with a numbered list
+- Has a fresh context with zero knowledge of the implementation
+- Reviews the PR diff via `gh pr diff`
+- Checks for CLAUDE.md compliance
+- Scores issues by confidence (0-100), filters below 80
+- Posts findings as a PR comment via `gh pr comment`
+- Returns "LGTM" or "ISSUES: N issues found"
+
+**Note:** `claude -p` (nested sessions) is not used — Claude Code blocks nested sessions to prevent resource conflicts. Task subagents provide the same isolation without this limitation.
 
 ## PR Comment Formats
 
@@ -142,7 +144,7 @@ When the review loop (5 rounds) or CI loop (3 attempts) is exhausted without rea
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Skill vs Command | Command (`~/.claude/commands/`) | User-invocable slash command |
-| Review isolation | `claude -p` subprocess | Clean reviewer context, no implementation bias |
+| Review isolation | Task subagent (`general-purpose`) | Clean reviewer context, no implementation bias, no nested session issues |
 | Fix automation | Fully autonomous | User wants hands-off loop |
 | Loop limits | 5 review / 3 CI | Prevent infinite loops while allowing reasonable attempts |
 | Merge strategy | Auto-detect | Respect repo configuration |
