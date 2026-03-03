@@ -1,6 +1,6 @@
 # yoloreview
 
-You've just finished a small change. The kids need bathing, dinner's on the table, or it's time for the bedtime story. Type `/yoloreview`, close your laptop, and go. When you come back, your PR has been reviewed, fixed, passed CI, and merged.
+You've just finished a small change. Dinner's on the table, the kids need bathing, or it's time for the bedtime story. Type `/yoloreview` and leave your laptop. When you come back, your PR has been reviewed, fixed, passed CI, and merged.
 
 That's it. That's the whole idea.
 
