@@ -4,6 +4,14 @@ You've just finished a small change. Dinner's on the table, the kids need bathin
 
 That's it. That's the whole idea.
 
+### When to use it - and when not to
+
+This is for small, confident changes. A bug fix. A new util function. A config tweak. Something you've already looked at and know is solid.
+
+Don't make this part of your everyday workflow. Don't use it on a massive migration, a complex refactor, or anything that touches half the codebase. If the change needs deep context, careful sequencing, or your full attention to review - that's not a yoloreview. That's real work.
+
+Use it when you're confident it's not something that will ruin your day when you next open your laptop.
+
 ## What it does
 
 1. Creates a branch and commits your local changes
