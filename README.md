@@ -1,6 +1,8 @@
 # yoloreview
 
-A Claude Code slash command that fully automates the PR lifecycle. Make your changes, run `/yoloreview`, and walk away. It handles branching, PR creation, code review, autonomous fixes, CI monitoring, and merging.
+You've just finished a small change. The kids need bathing, dinner's on the table, or it's time for the bedtime story. Type `/yoloreview`, close your laptop, and go. When you come back, your PR has been reviewed, fixed, passed CI, and merged.
+
+That's it. That's the whole idea.
 
 ## What it does
 
