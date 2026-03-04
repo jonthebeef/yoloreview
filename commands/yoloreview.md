@@ -85,7 +85,16 @@ To do this, follow these steps precisely:
    c. Agent #3: Read the git blame and history of the code modified, to identify any bugs in light of that historical context
    d. Agent #4: Read previous pull requests that touched these files, and check for any comments on those pull requests that may also apply to the current pull request.
    e. Agent #5: Read code comments in the modified files, and make sure the changes in the pull request comply with any guidance in the comments.
-   f. Agent #6: Security-focused review. Check for: command injection (subprocess with shell=True, unsafe system calls, eval, exec), format string vulnerabilities (.format() with user-controlled input), SQL injection, path traversal, hardcoded secrets or credentials, unsafe deserialization, missing input validation at trust boundaries, and OWASP top 10 vulnerabilities. Read the full diff and flag any security concern.
+   f. Agent #6: Security-focused review. Read the full diff and check for ALL of these categories. For each, flag every instance found:
+      - Command injection: subprocess with shell=True, unsafe system calls, dynamic code evaluation
+      - Format string vulnerabilities: ANY use of str.format() where the format string is a variable or parameter rather than a string literal is a vulnerability. Example: `template.format(name=x)` is dangerous when template comes from outside the function. An attacker can pass format specifiers like `{name.__class__.__init__.__globals__}` to leak internal data. Flag every .format() call where the template string is not a hardcoded literal defined in the same scope.
+      - SQL injection: string concatenation or f-strings in queries
+      - Path traversal: unsanitized file paths
+      - Hardcoded secrets or credentials
+      - Unsafe deserialization or loading of untrusted data
+      - Missing input validation at trust boundaries
+      - OWASP top 10 vulnerabilities
+      Do not self-censor or filter. Return every finding.
 5. For each issue found in #4, launch a parallel Haiku agent that takes the PR, issue description, and list of CLAUDE.md files (from step 2), and returns a score to indicate the agent's level of confidence for whether the issue is real or false positive. To do that, the agent should score each issue on a scale from 0-100, indicating its level of confidence. For issues that were flagged due to CLAUDE.md instructions, the agent should double check that the CLAUDE.md actually calls out that issue specifically. The scale is (give this rubric to the agent verbatim):
    a. 0: Not confident at all. This is a false positive that doesn't stand up to light scrutiny, or is a pre-existing issue.
    b. 25: Somewhat confident. This might be a real issue, but may also be a false positive. The agent wasn't able to verify that it's a real issue. If the issue is stylistic, it is one that was not explicitly called out in the relevant CLAUDE.md.
