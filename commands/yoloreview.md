@@ -227,13 +227,13 @@ If CI_ATTEMPT == 3 and still failing, proceed to the Failure Protocol.
 
 ## Phase 5: Merge & Cleanup
 
-1. Merge the PR using the repo's default strategy:
+1. Merge the PR. Try squash first (cleanest history), fall back to merge commit:
    ```bash
-   gh pr merge <PR> --auto --delete-branch
+   gh pr merge <PR> --squash --delete-branch
    ```
-   If `--auto` fails (e.g. no branch protection configured), merge directly:
+   If squash is not allowed by the repo, try:
    ```bash
-   gh pr merge <PR> --delete-branch
+   gh pr merge <PR> --merge --delete-branch
    ```
 
 2. Post a final comment:
