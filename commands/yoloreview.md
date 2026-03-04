@@ -160,25 +160,51 @@ Now YOU (the orchestrating agent) act as the principal engineer. You have all fi
 
 === POST THE REVIEW ===
 
-Use gh to comment on the PR. Format:
+Use gh to comment on the PR. Write it like a principal engineer who has thoroughly reviewed this code and wants the author to understand the full picture — what's strong, what needs work, and why. Be direct, specific, and constructive.
 
-If issues found:
+Format (adapt sections based on what you found):
 
 ### Code review
 
-Found N issues:
+**Summary:** [1-2 sentences on what this PR does and your overall assessment — approved, needs changes, or needs rethinking]
 
-1. [severity: critical/high/medium] <description> (<reason: security/bug/test gap/regression/etc>)
+**What's good:**
+- [Genuinely positive observations about the code. Good naming, clean structure, solid test coverage, good use of existing patterns, etc. Be specific — cite the actual code. If nothing stands out, say "Straightforward implementation, no concerns with the approach."]
 
-<link to file and line with full sha1 + line range, eg. https://github.com/owner/repo/blob/FULL_SHA/path/file.py#L13-L17>
+**Issues:** [Only if issues were found]
+
+1. **[critical/high/medium]** <clear description of the problem>
+
+   **Why this matters:** [1 sentence on the real-world impact — what breaks, what's exploitable, what fails]
+
+   **Example:** [Show the specific input or scenario that triggers the bug, e.g. "Calling `safe_divide(10, 0)` raises ZeroDivisionError instead of returning a safe default"]
+
+   **Suggested fix:** [Brief guidance on how to fix it — not full code, just the approach]
+
+   <link to file and line with full sha1 + line range, eg. https://github.com/owner/repo/blob/FULL_SHA/path/file.py#L13-L17>
 
 (repeat for each issue, ordered by severity)
 
-If no issues:
+**Test coverage:** [Assessment of test quality for the changed code. What's well-tested, what edge cases are missing, what specific tests should be added. E.g. "Tests cover the happy path but miss: `safe_divide(x, 0)`, `merge_dicts` with non-dict values, `truncate` with max_length < 3"]
+
+**Suggestions:** [Optional. Non-blocking improvements that would make the code better but aren't required. Things a great engineer would mention in passing.]
+
+---
+
+If no issues and tests are solid:
 
 ### Code review
 
-No issues found. Reviewed for bugs, security, test quality, architecture, and CLAUDE.md compliance.
+**Summary:** Clean change, no issues found. Approved.
+
+**What's good:**
+- [Specific positive observations]
+
+**Test coverage:** [Assessment — what's covered, anything that could be added but isn't blocking]
+
+Reviewed for: bugs, security, test quality, architecture, regression, and CLAUDE.md compliance.
+
+---
 
 Link format rules:
 - Full git sha required (not HEAD or short sha)
