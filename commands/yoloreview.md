@@ -79,28 +79,22 @@ To do this, follow these steps precisely:
 1. Use a Haiku agent to check if the pull request (a) is closed, (b) is a draft, (c) does not need a code review (eg. because it is an automated pull request, or is very simple and obviously ok), or (d) already has a code review from you from earlier. If so, do not proceed.
 2. Use another Haiku agent to give you a list of file paths to (but not the contents of) any relevant CLAUDE.md files from the codebase: the root CLAUDE.md file (if one exists), as well as any CLAUDE.md files in the directories whose files the pull request modified
 3. Use a Haiku agent to view the pull request, and ask the agent to return a summary of the change
-4. Then, launch 6 parallel Sonnet agents to independently code review the change. Each agent MUST return ALL issues it finds, not just the single most confident one. The agents should do the following, then return a list of issues and the reason each issue was flagged (eg. CLAUDE.md adherence, bug, historical git context, security, etc.):
-   a. Agent #1: Audit the changes to make sure they comply with the CLAUDE.md. Note that CLAUDE.md is guidance for Claude as it writes code, so not all instructions will be applicable during code review.
-   b. Agent #2: Read the file changes in the pull request, then do a shallow scan for obvious bugs. Avoid reading extra context beyond the changes, focusing just on the changes themselves. Focus on large bugs, and avoid small issues and nitpicks. Ignore likely false positives.
-   c. Agent #3: Read the git blame and history of the code modified, to identify any bugs in light of that historical context
-   d. Agent #4: Read previous pull requests that touched these files, and check for any comments on those pull requests that may also apply to the current pull request.
-   e. Agent #5: Read code comments in the modified files, and make sure the changes in the pull request comply with any guidance in the comments.
-   f. Agent #6: Security-focused review. Read the full diff and check for ALL of these categories. For each, flag every instance found:
-      - Command injection: subprocess with shell=True, unsafe system calls, dynamic code evaluation
-      - Format string vulnerabilities: ANY use of str.format() where the format string is a variable or parameter rather than a string literal is a vulnerability. Example: `template.format(name=x)` is dangerous when template comes from outside the function. An attacker can pass format specifiers like `{name.__class__.__init__.__globals__}` to leak internal data. Flag every .format() call where the template string is not a hardcoded literal defined in the same scope.
-      - SQL injection: string concatenation or f-strings in queries
-      - Path traversal: unsanitized file paths
-      - Hardcoded secrets or credentials
-      - Unsafe deserialization or loading of untrusted data
-      - Missing input validation at trust boundaries
-      - OWASP top 10 vulnerabilities
-      Do not self-censor or filter. Return every finding.
-5. For each issue found in #4, launch a parallel Haiku agent that takes the PR, issue description, and list of CLAUDE.md files (from step 2), and returns a score to indicate the agent's level of confidence for whether the issue is real or false positive. To do that, the agent should score each issue on a scale from 0-100, indicating its level of confidence. For issues that were flagged due to CLAUDE.md instructions, the agent should double check that the CLAUDE.md actually calls out that issue specifically. The scale is (give this rubric to the agent verbatim):
-   a. 0: Not confident at all. This is a false positive that doesn't stand up to light scrutiny, or is a pre-existing issue.
-   b. 25: Somewhat confident. This might be a real issue, but may also be a false positive. The agent wasn't able to verify that it's a real issue. If the issue is stylistic, it is one that was not explicitly called out in the relevant CLAUDE.md.
-   c. 50: Moderately confident. The agent was able to verify this is a real issue, but it might be a nitpick or not happen very often in practice. Relative to the rest of the PR, it's not very important.
-   d. 75: Highly confident. The agent double checked the issue, and verified that it is very likely it is a real issue that will be hit in practice. The existing approach in the PR is insufficient. The issue is very important and will directly impact the code's functionality, or it is an issue that is directly mentioned in the relevant CLAUDE.md.
-   e. 100: Absolutely certain. The agent double checked the issue, and confirmed that it is definitely a real issue, that will happen frequently in practice. The evidence directly confirms this.
+4. Then, launch 8 parallel Sonnet agents to independently code review the change. Each agent MUST return ALL issues it finds, not just the single most confident one. The agents should return a list of issues and the reason each issue was flagged:
+   a. Agent #1: Audit the changes for CLAUDE.md compliance. Not all CLAUDE.md instructions apply during code review.
+   b. Agent #2: Thorough bug scan. Read changed functions in full context (not just diff lines). Look for: logic errors, off-by-one, null/undefined handling, missing error handling, race conditions, resource leaks, incorrect input assumptions, edge cases. Trace data flow through each changed function.
+   c. Agent #3: Git blame and history context — identify bugs in light of how the code evolved.
+   d. Agent #4: Previous PRs on these files — check for comments that may apply here too.
+   e. Agent #5: Code comments in modified files — ensure changes comply with guidance in comments.
+   f. Agent #6: Security review. Identify the language(s) in the diff, then apply the right checklist. All languages: hardcoded secrets, path traversal, missing input validation at trust boundaries, sensitive data in logs, OWASP top 10. Python: subprocess shell=True, str.format() where format string is a variable not a literal, unsafe deserialization, SQL via string concat. JS/TS: unsafe DOM injection, child_process with shell, prototype pollution, RegExp DoS, template injection in SQL/shell. Go: fmt.Sprintf in SQL, os/exec unsanitized, unchecked errors, goroutine leaks. Ruby: system/backticks with interpolation, send with user method names, SQL interpolation. Java/Kotlin: Runtime exec concat, unvalidated redirects, XXE, unsafe deserialization. Rust: unsafe with unchecked invariants, Command unsanitized args. For unlisted languages, apply general checklist. Flag every concern.
+   g. Agent #7: Test quality. Read the tests and the code they cover. Flag: missing edge case tests (zero, empty, null, boundaries, error paths), happy-path-only coverage, implementation-detail assertions, missing tests for new/changed functions, weak assertions that pass even with broken code. Return specific test recommendations.
+   h. Agent #8: Architecture and patterns. Read changed files AND their directory to understand codebase style. Flag: violations of existing patterns (naming, error handling, structure), unnecessary coupling, reimplementing existing utilities. Only flag where there is clear evidence of a pattern being violated.
+5. For each issue found in #4, launch a parallel Haiku agent that takes the PR, issue description, and list of CLAUDE.md files (from step 2), and returns a confidence score (0-100). For CLAUDE.md issues, verify the CLAUDE.md actually calls it out. The scale is (give this rubric to the agent verbatim):
+   a. 0: False positive that doesn't stand up to light scrutiny, or a pre-existing issue not introduced by this PR.
+   b. 25: Might be an issue but can't verify. Stylistic issues not called out in CLAUDE.md.
+   c. 50: Verified real issue but minor or unlikely in practice. Not important relative to the rest of the PR.
+   d. 75: Verified real issue that will likely be hit in practice. The existing approach is insufficient. Important for functionality or directly mentioned in CLAUDE.md.
+   e. 100: Certain real issue, confirmed with evidence. Will happen frequently.
+   IMPORTANT scoring guidance: Security vulnerabilities (injection, unsafe deserialization, credential exposure) should score 75+ if the vulnerable code path is reachable. Missing test coverage for critical edge cases (null handling, error paths, boundary conditions) should score 75+ if the untested path could fail in production. Do not penalise these categories for being "unlikely" — security issues and missing safety tests are high-impact by definition.
 6. IMPORTANT: Collect ALL issues from ALL agents, deduplicate, then filter out any with a score less than 80. Post ALL remaining issues in a single comment. Do not drip-feed issues one at a time across multiple reviews - surface everything at once so fixes can be made in one pass. If there are no issues that meet the 80 threshold, do not proceed to posting issues.
 7. Use a Haiku agent to repeat the eligibility check from #1, to make sure that the pull request is still eligible for code review.
 8. Finally, use the gh bash command to comment back on the pull request with the result. When writing your comment, keep in mind to:
@@ -110,14 +104,17 @@ To do this, follow these steps precisely:
 
 Examples of false positives, for steps 4 and 5:
 
-- Pre-existing issues
+- Pre-existing issues on lines the user did not modify
 - Something that looks like a bug but is not actually a bug
 - Pedantic nitpicks that a senior engineer wouldn't call out
-- Issues that a linter, typechecker, or compiler would catch (eg. missing or incorrect imports, type errors, broken tests, formatting issues, pedantic style issues like newlines). No need to run these build steps yourself -- it is safe to assume that they will be run separately as part of CI.
-- General code quality issues (eg. lack of test coverage, general security issues, poor documentation), unless explicitly required in CLAUDE.md
-- Issues that are called out in CLAUDE.md, but explicitly silenced in the code (eg. due to a lint ignore comment)
-- Changes in functionality that are likely intentional or are directly related to the broader change
-- Real issues, but on lines that the user did not modify in their pull request
+- Issues that a linter, typechecker, or compiler would catch (eg. formatting, import ordering, type errors). CI handles these.
+- Issues called out in CLAUDE.md but explicitly silenced in code (eg. lint ignore comment)
+- Changes in functionality that are likely intentional or directly related to the broader change
+
+NOT false positives (do NOT filter these out):
+- Security vulnerabilities in changed code, even if the pattern is common
+- Missing edge case tests for changed functions
+- Functions named "safe_X" or "validate_X" that don't actually handle the unsafe/invalid case
 
 Notes:
 
