@@ -14,14 +14,15 @@ Use it when you're confident it's not something that will ruin your day when you
 
 ## What it does
 
-1. Creates a branch and commits your local changes
-2. Raises a PR with an auto-generated title and description
-3. Spawns an **isolated** Claude Code process to run `/review` (the reviewer has zero knowledge of your implementation context)
-4. Posts review feedback as PR comments
-5. Autonomously fixes any issues found
-6. Pushes fixes and re-reviews in a loop until the reviewer gives an LGTM
-7. Watches the CI pipeline until it goes green, fixing failures along the way
-8. Merges the PR and cleans up the branch
+1. **Checks the scope of your changes** — counts files, lines, and checks for sensitive file patterns. If the change looks too big or touches risky files (migrations, CI config, auth, infrastructure), it pauses and asks "Are you sure this is a set-and-forget change?" before proceeding. Small, clean changes sail through without a prompt.
+2. Creates a branch and commits your local changes
+3. Raises a PR with an auto-generated title and description
+4. Spawns an **isolated** Claude Code process to run `/review` (the reviewer has zero knowledge of your implementation context)
+5. Posts review feedback as PR comments
+6. Autonomously fixes any issues found
+7. Pushes fixes and re-reviews in a loop until the reviewer gives an LGTM
+8. Watches the CI pipeline until it goes green, fixing failures along the way
+9. Merges the PR and cleans up the branch
 
 If it can't get to a merge within the limits (5 review rounds, 3 CI fix attempts), it accepts failure gracefully - posting a detailed root cause analysis with actionable recommendations on the PR and reporting back to you.
 
@@ -61,6 +62,17 @@ The command works whether you're on `main`/`master` (it'll create a branch) or a
 Local changes
     |
     v
+Scope check (files, lines, sensitive patterns)
+    |
+    +-- Too big / sensitive --> "Are you sure?" prompt
+    |       |                       |
+    |       +-- "Yes, YOLO it" -----+
+    |       |                       |
+    |       +-- "No" --> Stop       |
+    |                   (suggests /review or splitting)
+    +-- Small & clean --------------+
+    |
+    v
 Create branch + commit + push
     |
     v
@@ -91,6 +103,7 @@ Create PR
 
 ## Safety
 
+- **Scope check before anything irreversible** — before creating branches, commits, or PRs, yoloreview assesses whether the change is suitable for a fully automated pipeline. If it detects a large change (>5 files or >200 lines) or sensitive files (migrations, CI config, auth, Dockerfiles, infrastructure, secrets), it pauses and asks you to confirm. You can always override, but it makes sure you've thought about it first. Small, confident changes proceed without interruption.
 - Never force pushes - all changes are additive commits
 - Never skips pre-commit hooks
 - Posts PR comments at every stage for a clear audit trail

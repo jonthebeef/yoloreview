@@ -15,6 +15,39 @@ The review is run by dispatching a **Task subagent** (type: `general-purpose`). 
 
 **Do NOT use `claude -p`** — nested Claude Code sessions are not supported.
 
+## Phase 0: Scope Check
+
+Before doing anything irreversible, assess whether this change is suitable for a fully automated YOLO review. This is a safety gate — it protects the user from accidentally sending a large or sensitive change through an unattended pipeline.
+
+1. Run `git diff --stat` and `git diff --cached --stat` to get the list of changed files and line counts.
+2. Run `git ls-files --others --exclude-standard` to count untracked files that will be included.
+3. Calculate totals: number of files changed/added and total lines changed (insertions + deletions).
+4. Check for **size flags**:
+   - More than 5 files changed/added
+   - More than 200 lines changed (insertions + deletions)
+5. Check for **sensitive file flags** — any file matching these patterns, regardless of change size:
+   - `*migration*`, `*migrate*`
+   - `.github/*`, `ci/*`, `.circleci/*`, `Jenkinsfile`
+   - `*auth*`, `*security*`, `*permission*`
+   - `Dockerfile`, `docker-compose*`
+   - `*.lock` (package lock files)
+   - `*.env*`, `*secret*`, `*credential*`
+   - `infrastructure/*`, `terraform/*`, `*.tf`
+6. **If no flags triggered:** proceed silently to Phase 1.
+7. **If any flags triggered:** use `AskUserQuestion` to pause and confirm:
+
+   Build a summary of what was detected. For example: "This change touches 12 files with 340 lines changed. Flagged: touches CI config (.github/workflows/deploy.yml), large change (12 files, 340 lines)."
+
+   Ask: "This looks bigger than a typical YOLO review. Are you sure this is a set-and-forget change?"
+
+   Options:
+   - **"Yes, YOLO it"** — proceed to Phase 1 as normal
+   - **"No, I'll handle this manually"** — stop and suggest alternatives:
+     - Run `/review` to get a standalone code review without the automated merge pipeline
+     - Break the changes into smaller, more focused commits and run `/yoloreview` on each one separately
+
+   If the user declines, stop entirely. Do not proceed to Phase 1.
+
 ## Phase 1: Setup
 
 1. Run `git status` to confirm there are local changes (staged, unstaged, or untracked). If no changes exist, stop and tell the user "No local changes found. Make some changes first, then run /yoloreview."
