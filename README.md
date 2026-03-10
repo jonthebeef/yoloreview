@@ -14,7 +14,7 @@ Use it when you're confident it's not something that will ruin your day when you
 
 ## What it does
 
-1. **Checks the scope of your changes** — counts files, lines, and checks for sensitive file patterns. If the change looks too big or touches risky files (migrations, CI config, auth, infrastructure), it pauses and asks "Are you sure this is a set-and-forget change?" before proceeding. Small, clean changes sail through without a prompt.
+1. **Checks the scope of your changes** — first applies hard thresholds (file count, line count, sensitive file patterns). If those pass, runs a fast Haiku model assessment on the actual diff to catch semantic risks that numbers miss — like multiple unrelated concerns, changes to critical paths, or complexity that's hard to review unattended. If either layer flags a concern, it pauses and asks "Are you sure?" before proceeding. Small, clean changes sail through without a prompt.
 2. Creates a branch and commits your local changes
 3. Raises a PR with an auto-generated title and description
 4. Spawns an **isolated** Claude Code process to run `/review` (the reviewer has zero knowledge of your implementation context)
@@ -62,15 +62,28 @@ The command works whether you're on `main`/`master` (it'll create a branch) or a
 Local changes
     |
     v
-Scope check (files, lines, sensitive patterns)
+Scope check: hard thresholds (files, lines, sensitive patterns)
     |
-    +-- Too big / sensitive --> "Are you sure?" prompt
-    |       |                       |
-    |       +-- "Yes, YOLO it" -----+
-    |       |                       |
-    |       +-- "No" --> Stop       |
-    |                   (suggests /review or splitting)
-    +-- Small & clean --------------+
+    +-- Flagged --> "Are you sure?" prompt
+    |                   |
+    |                   +-- "Yes, YOLO it" --+
+    |                   |                    |
+    |                   +-- "No" --> Stop    |
+    |                       (suggests /review or splitting)
+    +-- Passed
+    |
+    v
+Scope check: Haiku semantic assessment (reads the diff)
+    |
+    +-- CONCERN --> "Are you sure?" prompt
+    |                   |
+    |                   +-- "Yes, YOLO it" --+
+    |                   |                    |
+    |                   +-- "No" --> Stop    |
+    |                       (suggests /review or splitting)
+    +-- PROCEED ----+
+                    |
+                    v
     |
     v
 Create branch + commit + push
@@ -103,7 +116,7 @@ Create PR
 
 ## Safety
 
-- **Scope check before anything irreversible** — before creating branches, commits, or PRs, yoloreview assesses whether the change is suitable for a fully automated pipeline. If it detects a large change (>5 files or >200 lines) or sensitive files (migrations, CI config, auth, Dockerfiles, infrastructure, secrets), it pauses and asks you to confirm. You can always override, but it makes sure you've thought about it first. Small, confident changes proceed without interruption.
+- **Two-layer scope check before anything irreversible** — before creating branches, commits, or PRs, yoloreview runs two layers of assessment. First, hard thresholds catch obviously large changes (>5 files, >200 lines) and sensitive file patterns (migrations, CI config, auth, Dockerfiles, infrastructure, secrets). If those pass, a fast Haiku model reviews the actual diff for semantic risks — mixed concerns, critical path changes, or complexity that's unsuitable for an unattended pipeline. If either layer flags a concern, it pauses and asks you to confirm. You can always override, but it makes sure you've thought about it first.
 - Never force pushes - all changes are additive commits
 - Never skips pre-commit hooks
 - Posts PR comments at every stage for a clear audit trail

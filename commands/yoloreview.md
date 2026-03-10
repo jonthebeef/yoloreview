@@ -2,7 +2,7 @@
 name: yoloreview
 description: Fully automated PR lifecycle - creates branch, raises PR, runs isolated code review, fixes issues autonomously, monitors CI, and merges when green. Invoke when local changes are ready for review.
 user-invocable: true
-allowed-tools: Bash, Read, Write, Edit, Grep, Glob, Task
+allowed-tools: Bash, Read, Write, Edit, Grep, Glob, Task, AskUserQuestion
 ---
 
 # YOLO Review
@@ -33,12 +33,49 @@ Before doing anything irreversible, assess whether this change is suitable for a
    - `*.lock` (package lock files)
    - `*.env*`, `*secret*`, `*credential*`
    - `infrastructure/*`, `terraform/*`, `*.tf`
-6. **If no flags triggered:** proceed silently to Phase 1.
-7. **If any flags triggered:** use `AskUserQuestion` to pause and confirm:
+6. **If any hard flags triggered:** skip straight to step 8 (the `AskUserQuestion` prompt) — no need for the Haiku assessment, the change is already flagged.
 
-   Build a summary of what was detected. For example: "This change touches 12 files with 340 lines changed. Flagged: touches CI config (.github/workflows/deploy.yml), large change (12 files, 340 lines)."
+7. **If no hard flags triggered:** run a **Haiku semantic assessment**. Dispatch a Task subagent to evaluate whether the change is suitable for an unattended automated review:
 
-   Ask: "This looks bigger than a typical YOLO review. Are you sure this is a set-and-forget change?"
+   - **subagent_type:** `general-purpose`
+   - **model:** `haiku`
+   - **description:** `Scope check for YOLO review`
+   - **prompt:**
+
+   ```
+   You are assessing whether a code change is suitable for a fully automated, unattended review-and-merge pipeline (YOLO review). YOLO reviews are for small, confident changes — a bug fix, a new util, a config tweak. They are NOT for large refactors, complex features, architectural changes, or anything that mixes multiple unrelated concerns.
+
+   Here is the diff summary:
+
+   <PASTE GIT DIFF --STAT OUTPUT HERE>
+
+   And here is the full diff:
+
+   <PASTE GIT DIFF OUTPUT HERE>
+
+   Assess this change. Consider:
+   - Is this a single, focused concern or are multiple unrelated things changing?
+   - Does the change touch critical paths (auth, payments, data models, API contracts)?
+   - Is the complexity low enough that an automated reviewer can reliably catch issues?
+   - Would a senior engineer be comfortable merging this without personally reviewing it?
+
+   Respond with EXACTLY one of:
+   - "PROCEED" — if this is a clean, small, focused change suitable for YOLO review
+   - "CONCERN: <one sentence explaining why>" — if this change is too large, too complex, too risky, or mixes multiple concerns for an unattended pipeline
+   ```
+
+   If the subagent returns "PROCEED", move silently to Phase 1.
+   If the subagent returns "CONCERN: ...", continue to step 8.
+
+8. **Pause and confirm with the user.** Use `AskUserQuestion`:
+
+   Build a summary of what was detected. Include:
+   - The hard flags if any (file count, line count, sensitive files)
+   - The Haiku concern if applicable (quote its assessment)
+
+   For example: "This change touches 3 files with 80 lines changed, but Haiku flagged: 'Modifies the authentication middleware and adds a new API endpoint — two unrelated concerns that should be reviewed separately.'"
+
+   Ask: "This might not be ideal for a fully automated YOLO review. Are you sure this is a set-and-forget change?"
 
    Options:
    - **"Yes, YOLO it"** — proceed to Phase 1 as normal
